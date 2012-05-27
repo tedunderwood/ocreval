@@ -135,3 +135,197 @@ def Hyphen(Text,Lexicon,Rules={},verbose=False):
 
     return cleanwords
 
+def break_hyphens(Text,Lexicon,Rules={},verbose=False):
+    '''
+    Tokenizes the Text passed in, breaking words at
+    spaces, commas, quotes, dashes--and hyphens.
+    Fuses words across linebreaks whenever doing so
+    produces a valid word, whether or not there is an
+    eol hyphen. TO BE USED FOR OCR-EVAL.
+    '''
+
+    Punctuation = '.,():-—;"!?•$%@#<>+=/[]*\'^{}_■~\\|«»©&~`£·'
+    BreakablePunctuation = ',()-—;"!?'
+    BreakDictionary = {}
+    for character in BreakablePunctuation:
+        BreakDictionary[character] = ' '
+    BreakMap = BreakablePunctuation.maketrans(BreakDictionary)
+
+    if verbose:
+        print("Generating Tokens, breaking words at hyphens")
+
+    words = list()
+    cleanwords = list()
+    corrections = 0
+    discard = 0
+    tryfuse = str()
+    final_index = len(Text) - 1
+
+    for index, line in enumerate(Text):
+        line = line.rstrip()
+        line = line.translate(BreakMap)
+        
+        checkwords = line.split()
+        words = list()
+
+## If XML/TEI tags, discard.  Then remove punctuation and discard anything that
+## isn't a possible dictionary match.
+
+        for w in checkwords:
+            if w.startswith('<') and w.endswith('>'):
+                discard = discard + 1
+                continue
+            w = w.strip(Punctuation)
+            if w.isdigit():
+                discard = discard + 1
+                continue
+            if len(w) < 1:
+                discard = discard + 1
+                continue
+            words.append(w)            
+
+## Always check last token from previous line to see whether
+## fusing with first token from current line produces a dictionary/rule match.
+## If no match is found, then add to the beginning of the current line's list
+## so that it will be added into the list of processed tokens at end of this loop
+                
+        if tryfuse != str() and len(words) >= 1:
+
+            if tryfuse + words[0] in Lexicon:                
+                words[0] = tryfuse + words[0]
+                corrections = corrections + 1
+
+            elif len(Rules) >= 1 and tryfuse + words[0] in Rules:
+                words[0] = tryfuse + words[0]
+                corrections = corrections + 1
+
+            else:
+                words.insert(0, tryfuse)
+
+## Before adding this line's processed tokens to list, remove final token from this
+## line's list and store in fusion variable for processing next loop.
+## Only exception is, if you're on the last line.
+
+        if index < final_index and len(words) >= 1:
+            tryfuse = words.pop()
+        else:
+            tryfuse = str()
+
+        cleanwords.extend(words)
+
+    if verbose:
+        print("\t" + str(discard) + " items discarded")
+        print("\t" + str(corrections) + " hyphenated line fragments fused")
+        print("\t" + str(len(cleanwords)) + " tokens processed")
+
+    return cleanwords
+
+def keep_hyphens(Text,Lexicon,Rules={},verbose=False):
+    '''
+    Tokenizes the Text passed in, breaking words at
+    spaces, commas, dashes--but not hyphens.
+    Hyphenated words are preserved to be handled by a FormIndexer
+    that will index *both* the hyphenated form and the parts.
+    Fuse words across linebreaks whenever doing so creates
+    dict/rule matches for previously unmatchable tokens. Where there is an
+    eol hyphen but word won't fuse/match, turn word into hyphenated form.
+    Does not strip kinds of punctuation that commonly
+    serve as clues in correcting OCR.
+    TO BE USED FOR The FormIndexer.
+    '''
+
+    Punctuation = '.,():-—;"!?$%#<>+=/[]*^\'{}_~\\|«»©~`£·'
+    BreakablePunctuation = ',—;"!?_'
+    BreakDictionary = {}
+    for character in BreakablePunctuation:
+        BreakDictionary[character] = ' '
+    BreakMap = BreakablePunctuation.maketrans(BreakDictionary)
+
+    if verbose:
+        print("Generating Tokens, keeping hyphens in words.")
+
+    words = list()
+    cleanwords = list()
+    corrections = 0
+    discard = 0
+    tryfuse = str()
+    final_index = len(Text) - 1
+    eol_hyphen = False
+
+    for index, line in enumerate(Text):
+        line = line.rstrip()
+        line = line.translate(BreakMap)
+        line = line.replace('--', ' ')
+        # Double-hyphens are probably dashes and should be split.
+        
+        if line.endswith('-'):
+            eol_hyphen = True
+        else:
+            eol_hyphen = False
+        
+        checkwords = line.split()
+        words = list()
+
+## If XML/TEI tags, discard.  Then remove punctuation and discard anything that
+## isn't a possible dictionary match.
+
+        for w in checkwords:
+            if w.startswith('<') and w.endswith('>'):
+                discard = discard + 1
+                continue
+            w = w.strip(Punctuation)
+            if w.isdigit():
+                discard = discard + 1
+                continue
+            if len(w) < 1:
+                discard = discard + 1
+                continue
+            words.append(w)            
+
+## Always check last token from previous line to see whether
+## fusing with first token from current line produces a dictionary/rule match.
+## Fuse only if one of those tokens would otherwise not match.
+## If there was a hyphen at the end of the line, but fusing does not
+## produce a match, then treat the words as a hyphenated form; the FormIndexer
+## will index both the parts and the compound.
+            
+## If no match is found, then add to the beginning of the current line's list
+## so that it will be added into the list of processed tokens at end of this loop
+
+                
+        if tryfuse != str() and len(words) >= 1:
+
+            if tryfuse + words[0] in Lexicon and (tryfuse not in Lexicon or words[0] not in Lexicon):                
+                words[0] = tryfuse + words[0]
+                corrections = corrections + 1
+
+            elif tryfuse + words[0] in Rules and ((tryfuse not in Rules
+            and tryfuse not in Lexicon) or (words[0] not in Rules and
+            words[0] not in Lexicon)):
+                words[0] = tryfuse + words[0]
+                corrections = corrections + 1
+
+            elif eol_hyphen:
+                words[0] = tryfuse + "-" + words[0]
+                corrections = corrections + 1
+
+            else:
+                words.insert(0, tryfuse)
+
+## Before adding this line's processed tokens to list, remove final token from this
+## line's list and store in fusion variable for processing next loop.
+## Only exception is, if you're on the last line.
+
+        if index < final_index and len(words) >= 1:
+            tryfuse = words.pop()
+        else:
+            tryfuse = str()
+
+        cleanwords.extend(words)
+
+    if verbose:
+        print("\t" + str(discard) + " items discarded")
+        print("\t" + str(corrections) + " hyphenated line fragments fused")
+        print("\t" + str(len(cleanwords)) + " tokens processed")
+
+    return cleanwords

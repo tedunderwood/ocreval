@@ -36,10 +36,8 @@ def GetScore(Text,Lexicon,Rules=set(),verbose=False,hyphen=False):
 ## If not asked to check for possible fragmented matches, use basic checker.
 ## Function will default to basic checker.
 
-    if hyphen == False:
-        Tokens = TokenGen.Basic(Text,verbose)
-    else:
-        Tokens = TokenGen.Hyphen(Text,Lexicon,Rules,verbose)
+    
+    Tokens = TokenGen.break_hyphens(Text,Lexicon,Rules,verbose)
 
 ## Maintains separate scores for substitution if rules were passed in, as well
 ## as separate scores for capitals, lowercase. Note that tokens like
