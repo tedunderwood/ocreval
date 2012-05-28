@@ -231,7 +231,7 @@ def keep_hyphens(Text,Lexicon,Rules={},verbose=False):
     eol hyphen but word won't fuse/match, turn word into hyphenated form.
     Does not strip kinds of punctuation that commonly
     serve as clues in correcting OCR.
-    TO BE USED FOR The FormIndexer.
+    TO BE USED FOR The TypeIndexer.
     '''
 
     Punctuation = '.,():-—;"!?$%#<>+=/[]*^\'{}_~\\|«»©~`£·'
